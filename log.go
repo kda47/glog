@@ -3,24 +3,29 @@ package glog
 import (
 	"context"
 	"io"
+	"log"
+	"log/slog"
 	"os"
+	"time"
+
+	"github.com/lmittmann/tint"
 )
 
 const (
-	defaultLevel      = LevelInfo
-	defaultAddSource  = true
-	defaultIsJSON     = true
-	defaultSetDefault = true
-	defaultLogFile    = ""
+	defaultLevel        = LevelInfo
+	defaultAddSource    = true
+	defaultOutputFormat = OutputFormatJSON
+	defaultSetDefault   = true
+	defaultLogFile      = ""
 )
 
 func NewLogger(opts ...LoggerOption) *Logger {
 	config := &LoggerOptions{
-		Level:       defaultLevel,
-		AddSource:   defaultAddSource,
-		IsJSON:      defaultIsJSON,
-		SetDefault:  defaultSetDefault,
-		LogFilePath: defaultLogFile,
+		Level:        defaultLevel,
+		AddSource:    defaultAddSource,
+		OutputFormat: defaultOutputFormat,
+		SetDefault:   defaultSetDefault,
+		LogFilePath:  defaultLogFile,
 	}
 
 	for _, opt := range opts {
@@ -32,16 +37,36 @@ func NewLogger(opts ...LoggerOption) *Logger {
 		Level:     config.Level,
 	}
 
-	// by default we write to stdout.
-	var w io.Writer = os.Stdout
+	var logStream io.Writer = os.Stdout
+	var isatty bool
 
-	var h Handler = NewTextHandler(w, options)
+	switch config.LogFilePath {
+	case "", "stdout", "/dev/stdout":
+		logStream = os.Stdout
+		isatty = true
+	default:
+		f, err := os.OpenFile(config.LogFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+		if err != nil {
+			log.Fatalf("Error on opening logging file: %s\n", err.Error())
+		}
+		logStream = f
+	}
+	var handler slog.Handler
 
-	if config.IsJSON {
-		h = NewJSONHandler(w, options)
+	switch config.OutputFormat {
+	case OutputFormatJSON:
+		handler = NewJSONHandler(logStream, options)
+	case OutputFormatTEXT:
+		opts := &tint.Options{
+			Level:      options.Level,
+			TimeFormat: time.DateTime,
+			NoColor:    !isatty,
+			AddSource:  options.AddSource,
+		}
+		handler = tint.NewHandler(logStream, opts)
 	}
 
-	logger := New(h)
+	logger := New(handler)
 
 	if config.SetDefault {
 		SetDefault(logger)
@@ -51,16 +76,16 @@ func NewLogger(opts ...LoggerOption) *Logger {
 }
 
 type LoggerOptions struct {
-	Level       Level
-	AddSource   bool
-	IsJSON      bool
-	SetDefault  bool
-	LogFilePath string
+	Level        Level
+	AddSource    bool
+	OutputFormat OutputFormat
+	SetDefault   bool
+	LogFilePath  string
 }
 
 type LoggerOption func(*LoggerOptions)
 
-// WithLevel logger option sets the log level, if not set, the default level is Info.
+// WithLevel logger option sets the log level, if not set, the default level is Info
 func WithLevel(level string) LoggerOption {
 	return func(o *LoggerOptions) {
 		var l Level
@@ -72,28 +97,28 @@ func WithLevel(level string) LoggerOption {
 	}
 }
 
-// WithAddSource logger option sets the add source option, which will add source file and line number to the log record.
+// WithAddSource logger option sets the add source option, which will add source file and line number to the log record
 func WithAddSource(addSource bool) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.AddSource = addSource
 	}
 }
 
-// WithIsJSON logger option sets the is json option, which will set JSON format for the log record.
-func WithIsJSON(isJSON bool) LoggerOption {
+// WithOutputFormat set output format
+func WithOutputFormat(format OutputFormat) LoggerOption {
 	return func(o *LoggerOptions) {
-		o.IsJSON = isJSON
+		o.OutputFormat = format
 	}
 }
 
-// WithSetDefault logger option sets the set default option, which will set the created logger as default logger.
+// WithSetDefault logger option sets the set default option, which will set the created logger as default logger
 func WithSetDefault(setDefault bool) LoggerOption {
 	return func(o *LoggerOptions) {
 		o.SetDefault = setDefault
 	}
 }
 
-// WithAttrs returns logger with attributes.
+// WithAttrs returns logger with attributes
 func WithAttrs(ctx context.Context, attrs ...Attr) *Logger {
 	logger := L(ctx)
 	for _, attr := range attrs {
@@ -103,7 +128,7 @@ func WithAttrs(ctx context.Context, attrs ...Attr) *Logger {
 	return logger
 }
 
-// WithDefaultAttrs returns logger with default attributes.
+// WithDefaultAttrs returns logger with default attributes
 func WithDefaultAttrs(logger *Logger, attrs ...Attr) *Logger {
 	for _, attr := range attrs {
 		logger = logger.With(attr)
