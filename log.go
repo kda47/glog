@@ -21,52 +21,60 @@ const (
 
 func NewLogger(opts ...LoggerOption) *Logger {
 	config := &LoggerOptions{
-		Level:        defaultLevel,
-		AddSource:    defaultAddSource,
-		OutputFormat: defaultOutputFormat,
-		SetDefault:   defaultSetDefault,
-		LogFilePath:  defaultLogFile,
+		Level:         defaultLevel,
+		AddSource:     defaultAddSource,
+		OutputFormat:  defaultOutputFormat,
+		SetDefault:    defaultSetDefault,
+		LogFilePath:   defaultLogFile,
+		CustomHandler: nil,
 	}
 
 	for _, opt := range opts {
 		opt(config)
 	}
 
-	options := &HandlerOptions{
-		AddSource: config.AddSource,
-		Level:     config.Level,
-	}
+	var logger *Logger
 
-	var logStream io.Writer = os.Stdout
-	var isatty bool
-
-	switch config.LogFilePath {
-	case "", "stdout", "/dev/stdout":
-		logStream = os.Stdout
-		isatty = true
-	default:
-		f, err := os.OpenFile(config.LogFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
-		if err != nil {
-			log.Fatalf("Error on opening logging file: %s\n", err.Error())
+	if config.CustomHandler != nil {
+		logger = New(config.CustomHandler)
+	} else {
+		options := &HandlerOptions{
+			AddSource: config.AddSource,
+			Level:     config.Level,
 		}
-		logStream = f
-	}
-	var handler slog.Handler
 
-	switch config.OutputFormat {
-	case OutputFormatJSON:
-		handler = NewJSONHandler(logStream, options)
-	case OutputFormatTEXT:
-		opts := &tint.Options{
-			Level:      options.Level,
-			TimeFormat: time.DateTime,
-			NoColor:    !isatty,
-			AddSource:  options.AddSource,
+		var logStream io.Writer = os.Stdout
+		var isatty bool
+
+		switch config.LogFilePath {
+		case "", "stdout", "/dev/stdout":
+			logStream = os.Stdout
+			isatty = true
+		default:
+			f, err := os.OpenFile(config.LogFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
+			if err != nil {
+				log.Fatalf("Error on opening logging file: %s\n", err.Error())
+			}
+			logStream = f
 		}
-		handler = tint.NewHandler(logStream, opts)
-	}
 
-	logger := New(handler)
+		var handler slog.Handler
+
+		switch config.OutputFormat {
+		case OutputFormatJSON:
+			handler = NewJSONHandler(logStream, options)
+		case OutputFormatTEXT:
+			opts := &tint.Options{
+				Level:      options.Level,
+				TimeFormat: time.DateTime,
+				NoColor:    !isatty,
+				AddSource:  options.AddSource,
+			}
+			handler = tint.NewHandler(logStream, opts)
+		}
+
+		logger = New(handler)
+	}
 
 	if config.SetDefault {
 		SetDefault(logger)
@@ -76,11 +84,12 @@ func NewLogger(opts ...LoggerOption) *Logger {
 }
 
 type LoggerOptions struct {
-	Level        Level
-	AddSource    bool
-	OutputFormat OutputFormat
-	SetDefault   bool
-	LogFilePath  string
+	Level         Level
+	AddSource     bool
+	OutputFormat  OutputFormat
+	SetDefault    bool
+	LogFilePath   string
+	CustomHandler Handler
 }
 
 type LoggerOption func(*LoggerOptions)
@@ -118,6 +127,13 @@ func WithSetDefault(setDefault bool) LoggerOption {
 	}
 }
 
+// WithCustomHandler logger option sets the custom handler
+func WithCustomHandler(handler Handler) LoggerOption {
+	return func(o *LoggerOptions) {
+		o.CustomHandler = handler
+	}
+}
+
 // WithAttrs returns logger with attributes
 func WithAttrs(ctx context.Context, attrs ...Attr) *Logger {
 	logger := L(ctx)
@@ -139,6 +155,11 @@ func WithDefaultAttrs(logger *Logger, attrs ...Attr) *Logger {
 
 func L(ctx context.Context) *Logger {
 	return LoggerFromContext(ctx)
+}
+
+// WithName returns logger with name attribute
+func WithName(ctx context.Context, name string) *Logger {
+	return L(ctx).With(StringAttr(NameKey, name))
 }
 
 func Default() *Logger {

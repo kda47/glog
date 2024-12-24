@@ -1,0 +1,26 @@
+version: "3"
+
+vars:
+  COLOR_RESET: "\\033[0m"
+  COLOR_CYAN: "\\033[0;36m"
+  COLOR_BLUE: "\\033[0;34m"
+
+tasks:
+  test:
+    desc: Run tests
+    cmds:
+      - "echo -e '{{.COLOR_BLUE}}======== Tests starting ========{{.COLOR_RESET}}'"
+      - "go test -v"
+    silent: true
+
+  test-cov:
+    desc: Run tests with coverage
+    cmds:
+      - "echo -e '{{.COLOR_BLUE}}======== Tests with coverage starting ========{{.COLOR_RESET}}'"
+      - "mkdir -p bin"
+      - "go test -v -coverprofile=bin/cover.out"
+      - "echo -e ''"
+      - "go tool cover -html=bin/cover.out -o bin/cover.html"
+      - "echo -e 'Coverage report: {{.COLOR_CYAN}}file://{{.TASKFILE_DIR}}/bin/cover.html{{.COLOR_RESET}}'"
+      - 'go tool cover -func bin/cover.out | grep total: | awk ''{ print "Total:", $3 }'''
+    silent: true

@@ -42,25 +42,27 @@ func ParseOutputFormat(format string) (OutputFormat, error) {
 }
 
 const (
+	LevelDebug = slog.LevelDebug
 	LevelInfo  = slog.LevelInfo
 	LevelWarn  = slog.LevelWarn
 	LevelError = slog.LevelError
-	LevelDebug = slog.LevelDebug
 
 	TimeKey    = slog.TimeKey
 	LevelKey   = slog.LevelKey
 	SourceKey  = slog.SourceKey
 	MessageKey = slog.MessageKey
+	NameKey    = "name"
 
-	KindTime     = slog.KindTime
-	KindGroup    = slog.KindGroup
-	KindString   = slog.KindString
-	KindInt64    = slog.KindInt64
-	KindUint64   = slog.KindUint64
-	KindFloat64  = slog.KindFloat64
-	KindBool     = slog.KindBool
-	KindDuration = slog.KindDuration
-	KindAny      = slog.KindAny
+	KindTime      = slog.KindTime
+	KindGroup     = slog.KindGroup
+	KindString    = slog.KindString
+	KindInt64     = slog.KindInt64
+	KindUint64    = slog.KindUint64
+	KindFloat64   = slog.KindFloat64
+	KindBool      = slog.KindBool
+	KindDuration  = slog.KindDuration
+	KindAny       = slog.KindAny
+	KindLogValuer = slog.KindLogValuer
 )
 
 type (
