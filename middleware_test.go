@@ -26,16 +26,27 @@ func NewRecordsLogger(records *[]Record) *Logger { return New(NewRecordsHandler(
 
 func NewRecordsHandler(records *[]Record) *RecordsHandler { return &RecordsHandler{records: records} }
 
-type RecordsHandler struct{ records *[]Record }
+type RecordsHandler struct {
+	records   *[]Record
+	withAttrs []Attr
+}
 
 func (h *RecordsHandler) Enabled(_ context.Context, _ Level) bool { return true }
 
 func (h *RecordsHandler) Handle(_ context.Context, r Record) error {
+	for _, attr := range h.withAttrs {
+		r.Add(attr)
+	}
 	*h.records = append(*h.records, r)
 	return nil
 }
 
-func (h *RecordsHandler) WithAttrs(_ []Attr) Handler { return h }
+func (h *RecordsHandler) WithAttrs(attrs []Attr) Handler {
+	for _, attr := range attrs {
+		h.withAttrs = append(h.withAttrs, attr)
+	}
+	return h
+}
 
 func (h *RecordsHandler) WithGroup(_ string) Handler { return h }
 
@@ -55,17 +66,6 @@ func checkLogRecord(r Record, expectLvl Level, expectMsg string, expectAttrs []A
 		recordAttrs[attr.Key] = attr.Value.Resolve()
 		return true
 	})
-
-	// value := attr.Value.Resolve()
-	// switch value.Kind() {
-	// case KindGroup:
-	// 	for _, groupAttr := range value.Group() {
-	// 		fmt.Println(groupAttr.Key, groupAttr.Value)
-	// 	}
-	// 	recordAttrs[attr.Key] = ""
-	// default:
-	// 	recordAttrs[attr.Key] = attr.Value.Resolve().String()
-	// }
 
 	for _, expectAttr := range expectAttrs {
 		expectValue := expectAttr.Value.String()
@@ -112,6 +112,8 @@ func TestHttpAccessLogMiddleware(t *testing.T) {
 
 	// OK response without body
 	httpHandler := func(w http.ResponseWriter, r *http.Request) {
+		ww := newResponseWriter(w)
+		ww.Flush()
 		w.WriteHeader(http.StatusOK)
 	}
 	req := httptest.NewRequest("GET", "http://testing", nil).WithContext(ctx)

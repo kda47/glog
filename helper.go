@@ -10,9 +10,9 @@ import (
 
 func RunPeriodicMemoryLogging(ctx context.Context, logger *Logger, level Level, interval time.Duration, gcCall bool) {
 	if logger == nil {
-		logger = NewLogger((WithLevel(level.String())))
+		logger = GetDefault()
 	}
-	logger = logger.With(StringAttr("name", "memory_stat"))
+	logger = WithName(logger, "memory_stat")
 
 	timer := time.NewTimer(interval)
 	defer timer.Stop()

@@ -11,6 +11,12 @@ import (
 	"github.com/lmittmann/tint"
 )
 
+var (
+	logFatalf = func(format string, v ...any) {
+		log.Fatalf(format, v...)
+	}
+)
+
 const (
 	defaultLevel        = LevelInfo
 	defaultAddSource    = true
@@ -53,7 +59,7 @@ func NewLogger(opts ...LoggerOption) *Logger {
 		default:
 			f, err := os.OpenFile(config.LogFilePath, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
 			if err != nil {
-				log.Fatalf("Error on opening logging file: %s\n", err.Error())
+				logFatalf("Error on opening logging file: %s\n", err.Error())
 			}
 			logStream = f
 		}
@@ -120,6 +126,13 @@ func WithOutputFormat(format OutputFormat) LoggerOption {
 	}
 }
 
+// WithOutputFilePath set output file path
+func WithOutputFilePath(path string) LoggerOption {
+	return func(o *LoggerOptions) {
+		o.LogFilePath = path
+	}
+}
+
 // WithSetDefault logger option sets the set default option, which will set the created logger as default logger
 func WithSetDefault(setDefault bool) LoggerOption {
 	return func(o *LoggerOptions) {
@@ -157,9 +170,9 @@ func L(ctx context.Context) *Logger {
 	return LoggerFromContext(ctx)
 }
 
-// WithName returns logger with name attribute
-func WithName(ctx context.Context, name string) *Logger {
-	return L(ctx).With(StringAttr(NameKey, name))
+// LoggerWithName returns logger with name attribute
+func WithName(logger *Logger, name string) *Logger {
+	return logger.With(StringAttr(NameKey, name))
 }
 
 func Default() *Logger {
