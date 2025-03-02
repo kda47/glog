@@ -127,20 +127,16 @@ func NewHttpAccessLogMiddleware(name string) func(next http.Handler) http.Handle
 
 			status := rw.Status()
 
-			var level Level
-			switch {
-			case status >= http.StatusInternalServerError:
+			level := LevelInfo
+			if status >= http.StatusInternalServerError {
 				level = LevelError
-			case status >= http.StatusBadRequest:
+			} else if status >= http.StatusBadRequest {
 				level = LevelWarn
-			default:
-				level = LevelInfo
 			}
 
-			ctx := r.Context()
-			logger := L(ctx)
-
-			attrs := []Attr{
+			attrs := make([]Attr, 0, 11)
+			attrs = append(
+				attrs,
 				StringAttr(AccessLogNameKey, name),
 				StringAttr("method", r.Method),
 				StringAttr("ip", getUserIP(r).String()),
@@ -149,15 +145,20 @@ func NewHttpAccessLogMiddleware(name string) func(next http.Handler) http.Handle
 				StringAttr("size", byteCountIEC(rw.Size())),
 				IntAttr("length", rw.Size()),
 				Float64Attr("duration", time.Since(start).Seconds()),
-				StringAttr("agent", r.UserAgent()),
-				StringAttr("referer", r.Referer()),
+			)
+
+			if ua := r.UserAgent(); ua != "" {
+				attrs = append(attrs, StringAttr("agent", ua))
+			}
+			if ref := r.Referer(); ref != "" {
+				attrs = append(attrs, StringAttr("referer", ref))
 			}
 
-			if authInfo, ok := loggedAuthInfoFromContext(ctx); ok {
+			if authInfo, ok := loggedAuthInfoFromContext(r.Context()); ok {
 				attrs = append(attrs, Any("auth", authInfo))
 			}
 
-			logger.LogAttrs(ctx, level, "Request", attrs...)
+			L(r.Context()).LogAttrs(r.Context(), level, "Request", attrs...)
 		})
 	}
 }

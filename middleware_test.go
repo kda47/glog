@@ -1,6 +1,7 @@
 package glog
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log/slog"
@@ -136,8 +137,6 @@ func TestHttpAccessLogMiddleware(t *testing.T) {
 			StringAttr("query", "/"),
 			StringAttr("size", "0 B"),
 			IntAttr("length", 0),
-			StringAttr("agent", req.UserAgent()),
-			StringAttr("referer", req.Referer()),
 		},
 	)
 	if err != nil {
@@ -170,8 +169,6 @@ func TestHttpAccessLogMiddleware(t *testing.T) {
 			StringAttr("query", "/"),
 			StringAttr("size", "0 B"),
 			IntAttr("length", 0),
-			StringAttr("agent", req.UserAgent()),
-			StringAttr("referer", req.Referer()),
 		},
 	)
 	if err != nil {
@@ -204,8 +201,6 @@ func TestHttpAccessLogMiddleware(t *testing.T) {
 			StringAttr("query", "/"),
 			StringAttr("size", "0 B"),
 			IntAttr("length", 0),
-			StringAttr("agent", req.UserAgent()),
-			StringAttr("referer", req.Referer()),
 		},
 	)
 	if err != nil {
@@ -288,4 +283,55 @@ func TestHttpAccessLogMiddleware(t *testing.T) {
 	if err != nil {
 		t.Errorf("check log record error: %s", err.Error())
 	}
+}
+
+type mockHijackableResponseWriter struct {
+	http.ResponseWriter
+}
+
+func (m *mockHijackableResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	return &net.TCPConn{}, bufio.NewReadWriter(bufio.NewReader(nil), bufio.NewWriter(nil)), nil
+}
+
+type mockNonHijackableResponseWriter struct {
+	http.ResponseWriter
+}
+
+func TestResponseWriterHijack(t *testing.T) {
+	t.Run("successful hijack", func(t *testing.T) {
+		rw := &responseWriter{
+			ResponseWriter: &mockHijackableResponseWriter{},
+		}
+
+		conn, bufrw, err := rw.Hijack()
+		if err != nil {
+			t.Errorf("Expected successful hijack, got error: %v", err)
+		}
+		if conn == nil {
+			t.Error("Expected non-nil connection")
+		}
+		if bufrw == nil {
+			t.Error("Expected non-nil bufio.ReadWriter")
+		}
+	})
+
+	t.Run("unsupported hijack", func(t *testing.T) {
+		rw := &responseWriter{
+			ResponseWriter: &mockNonHijackableResponseWriter{},
+		}
+
+		conn, bufrw, err := rw.Hijack()
+		if err == nil {
+			t.Error("Expected error for unsupported hijack")
+		}
+		if conn != nil {
+			t.Error("Expected nil connection for unsupported hijack")
+		}
+		if bufrw != nil {
+			t.Error("Expected nil bufio.ReadWriter for unsupported hijack")
+		}
+		if err.Error() != "the hijacker interface is not supported" {
+			t.Errorf("Expected specific error message, got: %v", err)
+		}
+	})
 }
